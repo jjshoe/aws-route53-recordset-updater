@@ -2,6 +2,7 @@ import boto3
 import json
 import os
 import requests
+import time
 
 import pprint
 pp = pprint.PrettyPrinter(indent=4)
@@ -55,6 +56,20 @@ def update_aws_ip(current_public_ip):
   )
 
   print(response)
+  change_id = response['ChangeInfo']['Id']
+  return change_id
+
+def wait_for_change(change_id):
+  timeout = 300  # 5 minutes
+  start_time = time.time()
+  while time.time() - start_time < timeout:
+    response = client.get_change(Id=change_id)
+    print(response)
+    if response['ChangeInfo']['Status'] == 'INSYNC':
+      return
+    time.sleep(5)
+  print("Timeout waiting for change to complete")
+  exit(1)
 
 current_public_ip=get_current_public_ip()
 current_aws_ip=get_current_aws_ip()
@@ -62,7 +77,8 @@ current_aws_ip=get_current_aws_ip()
 if current_public_ip != current_aws_ip:
   print('Current IP', current_public_ip, 'does not match the AWS IP', current_aws_ip)
   print('Updating...')
-  update_aws_ip(current_public_ip)
+  change_id = update_aws_ip(current_public_ip)
+  wait_for_change(change_id)
   print('Done.')
 else:
   print('Your current IP matches the AWS IP')
